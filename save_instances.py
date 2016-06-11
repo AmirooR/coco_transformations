@@ -12,7 +12,7 @@ saveDir='data_%s' % dataType
 saveName='%s/instances.pkl' % saveDir
 
 coco=COCO(annFile)
-annIds = coco.getAnnIds(iscrowd=False)
+annIds = coco.getAnnIds(areaRng=[1000 inf], iscrowd=False)
 anns = coco.loadAnns(annIds)
 print len(anns)
 random.shuffle(anns)

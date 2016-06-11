@@ -4,6 +4,7 @@ import skimage.io
 import skimage.transform
 from skimage.morphology import disk
 from skimage.filters import rank
+import random
 
 
 #class TransformerParam:
@@ -108,14 +109,14 @@ class Transformer:
         #skimage.io.imsave('mask' + str(np.random.random_integers(0, 100)) + '.png', np.array(mask, 'float64')/mask.max())
         return (img, mask)
 
-    def transform_img(self, img, final_size):
+    def transform_img(self, img, final_size, mask=None):
         if self.transform_param == None:
             trans_perturbation = skimage.transform.AffineTransform()
         else:
             trans_perturbation = self.build_augmentation_transform(image_height=img.shape[0], image_width=img.shape[1], **self.transform_param)
         
         if self.color_adjustment_param != None:
-            img = self.color_adjustment(img=img, **self.color_adjustment_param)
+            img = self.color_adjustment(img=img, mask=mask, **self.color_adjustment_param)
         
         img = self.fast_warp(img, trans_perturbation, cval=0)
         img = self.correct_ratio(img, final_size, cval=0)
@@ -146,18 +147,30 @@ class Transformer:
         complete_mask = np.array(skimage.transform.resize(complete_mask, new_size, order=0, mode='constant', cval=-1), dtype='int') 
         return (mask, complete_mask)
         
-    def color_adjustment(self, img, gaussian_std=.0, gamma=1.0, contrast = 1.0, brightness = 0, mult_rgb = np.array([1.0, 1.0, 1.0]), blur_radius = 0):
+    def color_adjustment(self, img, mask=None, gaussian_std=.0, gamma=1.0, contrast = 1.0, brightness = 0, mult_rgb = np.array([1.0, 1.0, 1.0]), blur_radius = 0):
         img **= gamma
         img *= contrast
         img += np.random.randn(*img.shape).astype('float32') * gaussian_std
         img += brightness
         img *= mult_rgb
         np.clip(img, 0.0, 1.0, img)
-        
+        blur_mask = None
+        if mask != None:
+            print mask.shape
+            blur_type = random.choice([1,2,3])
+            #print 'blur type is: %d' % blur_type #TODO: delete
+            if blur_type == 1:
+                blur_mask = mask
+            elif blur_type == 2:
+                blur_mask = 1 - mask
+            else:
+                blur_mask = np.ones_like(mask)
         if blur_radius > 0:
             selem = disk(blur_radius)
+            tmp_img = img.copy()
             for i in range(img.shape[2]):
-                img[:, :, i] = rank.mean(img[:, :, i], selem=selem) / 255.0
+                img[:, :, i] = rank.mean(img[:, :, i], selem=selem,mask=blur_mask) / 255.0
+            img[np.where(blur_mask == 0)] = tmp_img[np.where(blur_mask==0)]
         
         return img
     
