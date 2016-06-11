@@ -156,15 +156,7 @@ class Transformer:
         np.clip(img, 0.0, 1.0, img)
         blur_mask = None
         if mask != None:
-            print mask.shape
-            blur_type = random.choice([1,2,3])
-            #print 'blur type is: %d' % blur_type #TODO: delete
-            if blur_type == 1:
-                blur_mask = mask
-            elif blur_type == 2:
-                blur_mask = 1 - mask
-            else:
-                blur_mask = np.ones_like(mask)
+            blur_mask = random.choice([mask,1-mask,np.ones_like(mask)])
         if blur_radius > 0:
             selem = disk(blur_radius)
             tmp_img = img.copy()
