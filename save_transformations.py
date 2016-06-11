@@ -72,30 +72,30 @@ def bbox_padded(img):
     return rmin-padSize, rmax+padSize+1, cmin-padSize, cmax+padSize+1
 
 for i in np.arange(_count, len(anns)):
-	print 'transforming instance %d' % i
-	#transform_and_save_image(i)
-	uint_image = io.imread('%s/images/%s/%s' % (dataDir,dataType,imgs[i]['file_name']))
-	float_image = np.array(uint_image, dtype=np.float32)/255.0
-	rle = mask.frPyObjects(anns[i]['segmentation'], imgs[i]['height'], imgs[i]['width'])
-	m_uint = mask.decode(rle)
-	m = np.array(m_uint[:,:,0], dtype=np.float32)
-	base_tran = video_transformer.sample()
+    print 'transforming instance %d' % i
+    #transform_and_save_image(i)
+    uint_image = io.imread('%s/images/%s/%s' % (dataDir,dataType,imgs[i]['file_name']))
+    float_image = np.array(uint_image, dtype=np.float32)/255.0
+    rle = mask.frPyObjects(anns[i]['segmentation'], imgs[i]['height'], imgs[i]['width'])
+    m_uint = mask.decode(rle)
+    m = np.array(m_uint[:,:,0], dtype=np.float32)
+    base_tran = video_transformer.sample()
     frame1_tran = base_tran # + frame_transformer.sample()
-	frame2_tran = base_tran + frame_transformer.sample()
-	image1 = frame1_tran.transform_img(float_image.copy(), float_image.shape[:2], m)
+    frame2_tran = base_tran + frame_transformer.sample()
+    image1 = frame1_tran.transform_img(float_image.copy(), float_image.shape[:2], m)
     image1_padded = np.pad(image1,((padSize,padSize),(padSize,padSize),(0,0)), mode='constant')
-	mask1 = frame1_tran.transform_mask(m.copy(), m.shape)
+    mask1 = frame1_tran.transform_mask(m.copy(), m.shape)
 	
     #fills padded area with -1
-	mask1 = mask1[0]
-	mask1[mask1 == -1] = 0
+    mask1 = mask1[0]
+    mask1[mask1 == -1] = 0
     mask1_padded = np.pad(mask1,((padSize,padSize),(padSize,padSize)), mode='constant')
 
-	image2 = frame2_tran.transform_img(float_image.copy(), float_image.shape[:2], m)
+    image2 = frame2_tran.transform_img(float_image.copy(), float_image.shape[:2], m)
     image2_padded = np.pad(image2,((padSize,padSize),(padSize,padSize),(0,0)), mode='constant')
-	mask2 = frame2_tran.transform_mask(m.copy(), m.shape)
-	mask2 = mask2[0]
-	mask2[mask2 == -1] = 0
+    mask2 = frame2_tran.transform_mask(m.copy(), m.shape)
+    mask2 = mask2[0]
+    mask2[mask2 == -1] = 0
     mask2_padded = np.pad(mask2,((padSize,padSize),(padSize,padSize)), mode='constant')
 
     #find crop values
@@ -109,27 +109,27 @@ for i in np.arange(_count, len(anns)):
 
     #save
     img1saveName = '%s/image1/%d.jpg' % (imgSaveDir, i)
-	img2saveName = '%s/image2/%d.jpg' % (imgSaveDir, i)
-	mask1saveName = '%s/mask1/%d.png' % (imgSaveDir, i)
-	mask2saveName = '%s/mask2/%d.png' % (imgSaveDir, i)
-	tran1saveName = '%s/transform1/%d.pkl' % (imgSaveDir, i)
-	tran2saveName = '%s/transform2/%d.pkl' % (imgSaveDir, i)
+    img2saveName = '%s/image2/%d.jpg' % (imgSaveDir, i)
+    mask1saveName = '%s/mask1/%d.png' % (imgSaveDir, i)
+    mask2saveName = '%s/mask2/%d.png' % (imgSaveDir, i)
+    tran1saveName = '%s/transform1/%d.pkl' % (imgSaveDir, i)
+    tran2saveName = '%s/transform2/%d.pkl' % (imgSaveDir, i)
     cropImg1saveName = '%s/cropimage1/%d.jpg' % (imgSaveDir, i)
     cropImg2saveName = '%s/cropimage2/%d.jpg' % (imgSaveDir, i)
     cropMask1saveName = '%s/cropmask1/%d.png' % (imgSaveDir, i)
     cropMask2saveName = '%s/cropmask2/%d.png' % (imgSaveDir, i)
 
-	io.imsave(img1saveName, (image1*255).astype('uint8'))
-	io.imsave(img2saveName, (image2*255).astype('uint8'))
-	io.imsave(mask1saveName, (mask1*255).astype('uint8'))
-	io.imsave(mask2saveName, (mask2*255).astype('uint8'))
+    io.imsave(img1saveName, (image1*255).astype('uint8'))
+    io.imsave(img2saveName, (image2*255).astype('uint8'))
+    io.imsave(mask1saveName, (mask1*255).astype('uint8'))
+    io.imsave(mask2saveName, (mask2*255).astype('uint8'))
     io.imsave(cropImg1saveName, (cropImage1*255).astype('uint8'))
     io.imsave(cropImg2saveName, (cropImage2*255).astype('uint8'))
     io.imsave(cropMask1saveName, (cropMask1*255).astype('uint8'))
     io.imsave(cropMask2saveName, (cropMask2*255).astype('uint8'))
         
-	with open(tran1saveName, 'wb') as output:
-		pickle.dump(frame1_tran, output, -1)
-	with open(tran2saveName, 'wb') as output:
-		pickle.dump(frame2_tran, output, -1)
-	incrcounter()
+    with open(tran1saveName, 'wb') as output:
+        pickle.dump(frame1_tran, output, -1)
+    with open(tran2saveName, 'wb') as output:
+        pickle.dump(frame2_tran, output, -1)
+    incrcounter()

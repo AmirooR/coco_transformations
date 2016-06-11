@@ -171,7 +171,7 @@ class Transformer:
             for i in range(img.shape[2]):
                 img[:, :, i] = rank.mean(img[:, :, i], selem=selem,mask=blur_mask) / 255.0
             img[np.where(blur_mask == 0)] = tmp_img[np.where(blur_mask==0)]
-        
+
         return img
     
     def fast_warp(self, img, tf, output_shape=None, order = 1, mode='constant', cval=0):

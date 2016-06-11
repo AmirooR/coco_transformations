@@ -17,4 +17,4 @@ anns = coco.loadAnns(annIds)
 print len(anns)
 random.shuffle(anns)
 with open(saveName, 'wb') as output:
-	pickle.dump(anns, output, -1)
+    pickle.dump(anns, output, -1)
