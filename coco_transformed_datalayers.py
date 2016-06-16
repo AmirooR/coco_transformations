@@ -12,11 +12,11 @@ from skimage.transform import resize
 
 #TODO: put these to param_str ?
 
-dataDir='..' #TODO: set the exact path!
+dataDir='/home/amir/coco' #TODO: set the exact path!
 dataType='train2014'
 annFile='%s/annotations/instances_%s.json'%(dataDir,dataType)
 
-saveDir='data_%s' % dataType #TODO: set the exact path
+saveDir='/home/amir/coco/PythonAPI/data_%s' % dataType #TODO: set the exact path
 saveName='%s/instances.pkl' % saveDir
 
 class CocoTransformedDataLayer(caffe.Layer):
@@ -128,9 +128,9 @@ class BatchLoader(object):
                 mode='constant')
         cropImage1 = image1[rmin:(rmax+1),cmin:(cmax+1),:]
         current_image = resize(cropImage1, self.resizeShape1, mode='nearest')
-        cropMask1  = mask1[rmin:(rmax+1),cmin,(cmax+1),:]
+        cropMask1  = mask1[rmin:(rmax+1),cmin:(cmax+1)]
         current_mask = np.zeros_like(current_image)
-        resizedMask1 = resize(cropMask1, self.resizeShape1, mode='nearest')
+        resizedMask1 = resize(cropMask1.astype('float32'), self.resizeShape1, mode='nearest')
         current_mask[:,:,0] = current_image[:,:,0] * resizedMask1
         current_mask[:,:,1] = current_image[:,:,1] * resizedMask1
         current_mask[:,:,2] = current_image[:,:,2] * resizedMask1
@@ -140,13 +140,14 @@ class BatchLoader(object):
         next_image = resize(cropImage2, self.resizeShape2, mode='nearest')
         cropMask2  = mask2_padded[rmin:(rmin+4*padySize),
                 cmin:(cmin+4*padxSize)]
-        label = resize( cropMask2, self.resizeShape2, mode='nearest')
+        label = resize( cropMask2.astype('float32'), self.resizeShape2, mode='nearest')
 
         #correct the shapes
         current_image = current_image.transpose((2,0,1)) #3xWxH
         current_mask  = current_mask.transpose((2,0,1))
         next_image    = next_image.transpose((2,0,1))
-        label         = np.extpand_dims(label, axis=0) #1xWxH
+        label         = np.expand_dims(label, axis=0) #1xWxH
+	self.cur += 1
         return current_image, current_mask, next_image, label
         
 
