@@ -1,0 +1,13 @@
+layer {
+  name: "cur_im"
+  type: "Python"
+  top: "cur_im"
+  top: "masked_im"
+  top: "next_im"
+  top: "label"
+  python_param {
+    module: "coco_transformed_datalayers"
+    layer: "CocoTransformedDataLayer"
+    param_str: "{\'batch_size\': 2, \'im_shape\': (224,224)}"
+  }
+}
