@@ -42,8 +42,8 @@ class CocoTransformedDataLayerPrefetch(caffe.Layer):
         self.batch_size = params['batch_size']
         self.num_threads = params['num_threads']
         self.max_queue_size = params['max_queue_size']
-        self.queue = Queue(max_queue_size)
-        self.threads = [None]*num_threads
+        self.queue = Queue(self.max_queue_size)
+        self.threads = [None]*self.num_threads
         self.dataType=dataType
         self.dataDir=dataDir
         self.annFile=annFile
@@ -53,7 +53,7 @@ class CocoTransformedDataLayerPrefetch(caffe.Layer):
         with open(self.saveName, 'rb') as inp:
             self.anns = pickle.load(inp)
         self.imgs = self.coco.loadImgs([self.anns[i]['image_id'] for i in range(len(self.anns))])
-        for i in range(num_threads):
+        for i in range(self.num_threads):
             batch_loader = BatchLoader(params, self.coco, self.anns, self.imgs)
             self.threads[i] = LoaderThread(kwargs={'queue':self.queue,'loader':batch_loader})
             self.threads[i].setDaemon(True)
@@ -115,13 +115,13 @@ class BatchLoader(object):
         self.cur = 0
         #TODO print
         self.indexes = np.arange(len(self.anns))
-        shuffle(self.indexes)
+        random.shuffle(self.indexes)
 
 
     def load_next_image(self):
         if self.cur == len(self.anns):
             self.cur = 0
-            shuffle(self.indexes)
+            random.shuffle(self.indexes)
         img_cur = self.imgs[self.indexes[self.cur]]#self.coco.loadImgs([self.anns[self.cur]['image_id']])[0]
         uint_image = io.imread('%s/images/%s/%s' % (self.dataDir,
             self.dataType,img_cur['file_name']))
