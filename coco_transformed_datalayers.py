@@ -83,13 +83,14 @@ class BatchLoader(object):
         self.cur = 0
         #TODO print
 
-        #self.imgs = self.coco.loadImgs([self.anns[i]['image_id'] for i in range(len(anns))])
+        self.imgs = self.coco.loadImgs([self.anns[i]['image_id'] for i in range(len(self.anns))])
+        self.indexes = np.arange(len(self.anns))
 
     def load_next_image(self):
         if self.cur == len(self.anns):
             self.cur = 0
-            shuffle(self.anns)
-        img_cur = self.coco.loadImgs([self.anns[self.cur]['image_id']])[0]
+            shuffle(self.indexes)
+        img_cur = self.imgs[self.indexes[self.cur]]#self.coco.loadImgs([self.anns[self.cur]['image_id']])[0]
         uint_image = io.imread('%s/images/%s/%s' % (self.dataDir,
             self.dataType,img_cur['file_name']))
         if len(uint_image.shape) == 2:
@@ -97,7 +98,7 @@ class BatchLoader(object):
             tmp_image[:,:,0] = tmp_image[:,:,1] = tmp_image[:,:,2] = uint_image
             uint_image = tmp_image
         float_image = np.array(uint_image, dtype=np.float32)/255.0
-        rle = mask.frPyObjects(self.anns[self.cur]['segmentation'],
+        rle = mask.frPyObjects(self.anns[self.indexes[self.cur]]['segmentation'],
         img_cur['height'], img_cur['width'])
         m_uint = mask.decode(rle)
         m = np.array(m_uint[:,:,0], dtype=np.float32)
