@@ -32,8 +32,13 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-# reads a flo file, it is for little endian architectures,
 def read_flo_file(file_path):
+    """
+    reads a flo file, it is for little endian architectures,
+    first slice, i.e. data2D[:,:,0], is horizontal displacements
+    second slice, i.e. data2D[:,:,1], is vertical displacements
+
+    """
     with open(file_path, 'rb') as f:
         magic = np.fromfile(f, np.float32, count=1)
         if 202021.25 != magic:
@@ -101,6 +106,27 @@ def check_params(params, **kwargs):
 	    assert key_defined, 'Params must include {}'.format(key)
 	elif not key_defined:
 	    params[key] = val
+
+def load_netflow_db(annotations_file, split, shuffle = False):
+    if split == 'training':
+        split = 1
+    if split == 'test':
+        split = 2
+    annotations = np.loadtxt(annotations_file)
+    frame_indices = np.arange(len(annotations))
+    frame_indices = frame_indices[ annotations == split ]
+    data_dir = osp.join(osp.dirname(osp.abspath(annotations_file)), 'data/')
+    if shuffle:
+        random.shuffle( frame_indices)
+
+    return dict(frame_indices=frame_indices, data_dir=data_dir)
+
+def read_netflow_instance(netflow_db, instance_id):
+    data_dir = netflow_db['data_dir']
+    img1 = io.imread( osp.join(data_dir, '%05d_img1.ppm' % instance_id))
+    img2 = io.imread( osp.join(data_dir, '%05d_img2.ppm' % instance_id))
+    flow = read_flo_file( osp.join(data_dir, '%05d_flow.flo' % instance_id))
+    return img1, img2, flow
 
 def read_coco_instance(coco_db, instance_id, load_mask = True):
     ann = coco_db['coco'].loadAnns(coco_db['anns'][instance_id])[0]
