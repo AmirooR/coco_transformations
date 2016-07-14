@@ -115,14 +115,16 @@ def load_netflow_db(annotations_file, split, shuffle = False):
     annotations = np.loadtxt(annotations_file)
     frame_indices = np.arange(len(annotations))
     frame_indices = frame_indices[ annotations == split ]
+    length = len(frame_indices)
     data_dir = osp.join(osp.dirname(osp.abspath(annotations_file)), 'data/')
     if shuffle:
         random.shuffle( frame_indices)
 
-    return dict(frame_indices=frame_indices, data_dir=data_dir)
+    return dict(frame_indices=frame_indices, data_dir=data_dir, length=length)
 
 def read_netflow_instance(netflow_db, instance_id):
     data_dir = netflow_db['data_dir']
+    instance_id = netflow_db['frame_indices'][instance_id]
     instance_id = instance_id + 1
     img1 = io.imread( osp.join(data_dir, '%05d_img1.ppm' % instance_id))
     img2 = io.imread( osp.join(data_dir, '%05d_img2.ppm' % instance_id))
