@@ -32,6 +32,20 @@ class bcolors:
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
+# reads a flo file, it is for little endian architectures,
+def read_flo_file(file_path):
+    with open(file_path, 'rb') as f:
+        magic = np.fromfile(f, np.float32, count=1)
+        if 202021.25 != magic:
+            cprint('Magic number incorrect. Invalid .flo file: %s' %s file_path, bcolors.FAIL)
+            raise  Exception('Magic incorrect: %s !' % file_path)
+        else:
+            w = np.fromfile(f, np.int32, count=1)
+            h = np.fromfile(f, np.int32, count=1)
+            data = np.fromfile(f, np.float32, count=2*w*h)
+            data2D = np.reshape(data, (h, w, 2), order='C')
+            return data2D
+
 def add_noise_to_mask(cmask, r_param = (20, 20), mult_param = (20, 5), threshold = .2):
     radius = max(np.random.normal(*r_param), 1)
     mult = max(np.random.normal(*mult_param), 2)
