@@ -102,7 +102,8 @@ class BatchLoader(object):
             if self.shuffle:
 		random.shuffle(self.indexes)
 	
-        img1, img2, flow = read_netflow_instance(self.netflow_db, self.cur)
+        img1, img2, flow = read_netflow_instance(self.netflow_db,
+                self.indexes[self.cur])
         frame1_tran = self.video_transformer.sample()
         frame2_tran = frame1_tran + self.frame_transformer.sample() #TODO: x_scale?, y_scale?
         image1 = frame1_tran.transform_img(img1.copy(), img1.shape[:2]) #TODO: need mask?
