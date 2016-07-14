@@ -123,6 +123,7 @@ def load_netflow_db(annotations_file, split, shuffle = False):
 
 def read_netflow_instance(netflow_db, instance_id):
     data_dir = netflow_db['data_dir']
+    instance_id = instance_id + 1
     img1 = io.imread( osp.join(data_dir, '%05d_img1.ppm' % instance_id))
     img2 = io.imread( osp.join(data_dir, '%05d_img2.ppm' % instance_id))
     flow = read_flo_file( osp.join(data_dir, '%05d_flow.flo' % instance_id))
