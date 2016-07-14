@@ -83,19 +83,26 @@ class BatchLoader(object):
         self.mean = np.array(params['mean'])
         self.db_info = db_info
         self.sequences = sequences
-        self.index_tuples = []
-        for i in range(len(self.sequences)):
-            for j in range(int(self.sequences[i]['num_frames'])-1):
-                self.index_tuples.append( (i,j) )
 
-        self.cur = 0
-        random.shuffle(self.index_tuples)
+        self.cur1 = 0
+        self.cur2 = 0
+        self.indexes = np.arange(len(self.sequences))
+        random.shuffle(self.indexes)
+        self.seqindexes = [np.arange(int(x['num_frames'])-1) for x in self.sequences]
+        for x in self.seqindexes:
+            random.shuffle(x)
 
     def load_next_image(self):
-        if self.cur == len(self.index_tuples):
-            self.cur = 0
-            random.shuffle(self.index_tuples)
-        file_name = osp.join(cfg.PATH.SEQUENCES_DIR, self.sequences[self.index_tuples[self.cur][0]]['name'], '%05d.jpg' % self.index_tuples[self.cur][1])
+        if self.cur2 == len(self.seqindexes[self.indexes[self.cur1]]):
+            self.cur1 += 1
+            self.cur2 = 0 
+        if self.cur1 == len(self.indexes):
+            self.cur1 = 0
+            for x in self.seqindexes:
+                random.shuffle(x)
+            random.shuffle(self.indexes)
+            self.cur2 = 0 #don't need it
+        file_name = osp.join(cfg.PATH.SEQUENCES_DIR, self.sequences[self.indexes[self.cur1]]['name'], '%05d.jpg' % self.seqindexes[self.indexes[self.cur1]][self.cur2])
         uint_image = io.imread(file_name)
         if len(uint_image.shape) == 2:
             tmp_image = np.zeros(uint_image.shape + (3,), dtype=np.uint8)
@@ -103,15 +110,15 @@ class BatchLoader(object):
             uint_image = tmp_image
         float_image = np.array(uint_image, dtype=np.float32)/255.0
         #reading mask
-        mask_name = osp.join(cfg.PATH.ANNOTATION_DIR, self.sequences[self.index_tuples[self.cur][0]]['name'], '%05d.png' % self.index_tuples[self.cur][1])
+        mask_name = osp.join(cfg.PATH.ANNOTATION_DIR, self.sequences[self.indexes[self.cur1]]['name'], '%05d.png' % self.seqindexes[self.indexes[self.cur1]][self.cur2])
         m_uint = io.imread(mask_name)
         m = np.array(m_uint, dtype=np.float32)
         image1 = float_image #
         mask1  = m / 255. #
         if np.sum(mask1) < 200:
-            self.cur = self.cur + 1
+            self.cur2 = self.cur2 + 1
             return self.load_next_image()
-        image2_name = osp.join(cfg.PATH.SEQUENCES_DIR, self.sequences[self.index_tuples[self.cur][0]]['name'], '%05d.jpg' % (1 + self.index_tuples[self.cur][1]) )
+        image2_name = osp.join(cfg.PATH.SEQUENCES_DIR, self.sequences[self.indexes[self.cur1]]['name'], '%05d.jpg' % (1 + self.seqindexes[self.indexes[self.cur1]][self.cur2]) )
         uint_image2 = io.imread(image2_name)
         if len(uint_image2.shape) == 2:
             tmp_image = np.zeros(uint_image2.shape + (3,), dtype=np.uint8)
@@ -124,7 +131,7 @@ class BatchLoader(object):
         image2_padded = np.pad(image2,
                 ((padySize,padySize),(padxSize,padxSize),(0,0)),
                 mode='constant')
-        mask_name2 = osp.join(cfg.PATH.ANNOTATION_DIR, self.sequences[self.index_tuples[self.cur][0]]['name'], '%05d.png' % (1+self.index_tuples[self.cur][1]) )
+        mask_name2 = osp.join(cfg.PATH.ANNOTATION_DIR, self.sequences[self.indexes[self.cur1]]['name'], '%05d.png' % (1+self.seqindexes[self.indexes[self.cur1]][self.cur2]) )
         m2_uint = io.imread(mask_name2)
         m2 = np.array(m2_uint, dtype=np.float32)
         mask2 = m2 / 255. 
@@ -151,7 +158,7 @@ class BatchLoader(object):
         current_mask  = current_mask.transpose((2,0,1))
         next_image    = next_image.transpose((2,0,1))
         label         = np.expand_dims(label, axis=0) #1xWxH
-        self.cur += 1
+        self.cur1 += 1
         item = {'current_image':current_image,
                 'current_mask' :current_mask,
                 'next_image'   :next_image,

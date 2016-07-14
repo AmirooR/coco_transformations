@@ -148,7 +148,7 @@ class BatchLoader(object):
         current_mask  = current_mask.transpose((2,0,1))
         next_image    = next_image.transpose((2,0,1))
         label         = np.expand_dims(label, axis=0) #1xWxH
-	self.cur += 1
+        self.cur += 1
         return current_image, current_mask, next_image, label
         
 

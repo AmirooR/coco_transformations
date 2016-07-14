@@ -22,8 +22,8 @@ class Transformer_dist:
         self.transform_param = transform_param
         self.color_adjustment_param = color_adjustment_param
         
-    def sample(self):
-        det_transform_param = self.random_perturbation(**self.transform_param)
+    def sample(self, x_scale = 1.0, y_scale = 1.0):
+        det_transform_param = self.random_perturbation(x_scale, y_scale, **self.transform_param)
         det_color_adj_param = self.random_color_perturbation(**self.color_adjustment_param)
         return Transformer(det_transform_param, det_color_adj_param)
 
@@ -42,31 +42,21 @@ class Transformer_dist:
 
         return {'gaussian_std':sigma, 'gamma':gamma, 'contrast':contrast, 'brightness':brightness, 'mult_rgb':mult_rgb, 'blur_radius': blur_radius}
         
-    def random_perturbation(self, zoom_range=(1.0, 1.0), rotation_range=(0.0, 0.0), shear_range=(0, 0), translation_range=(0,0), do_flip=False):
-        # random shift [-4, 4] - shift no longer needs to be integer!
-        translation = np.random.uniform(*translation_range, size=[1, 2])
+    def random_perturbation(self, x_scale, y_scale, zoomx_param=(1.0, 0.0), zoomy_param = (1.0, 0.0),  rot_param=(0.0, 0.0), shear_param=(0.0, 0.0), transx_param=(0.0,0.0), transy_param=(0.0, 0.0), do_flip=False):
+        translation_x = 0.0 if transx_param[1] <= 0 else np.random.laplace(*transx_param) * x_scale
+        translation_y = 0.0 if transy_param[1] <= 0 else np.random.laplace(*transy_param) * y_scale
+        rotation = 0.0 if rot_param[1] <= 0 else np.random.laplace(*rot_param)
+        shear = 0.0 if shear_param[1] <= 0 else np.random.laplace(*shear_param)
         
-        # random rotation [0, 360]
-        rotation = np.random.uniform(*rotation_range) # there is no post-augmentation, so full rotations here!
-        
-        # random shear [0, 5]
-        shear = np.random.uniform(*shear_range)
-        
-        # # flip
-        if do_flip and (np.random.randint(2) > 0): # flip half of the time
+        if do_flip and (np.random.randint(2) > 0):
             shear += 180
             rotation += 180
-        # shear by 180 degrees is equivalent to rotation by 180 degrees + flip.
-        # So after that we rotate it another 180 degrees to get just the flip.
+      
+        zoom_x = 1.0 if zoomx_param[1] <= 0 else np.random.laplace(*zoomx_param)
+        zoom_y = 1.0 if zoomx_param[1] <= 0 else np.random.laplace(*zoomy_param)
         
-        # random zoom [0.9, 1.1]
-        # zoom = np.random.uniform(*zoom_range)
-        log_zoom_range = [np.log(z) for z in zoom_range]
-        zoom = np.exp(np.random.uniform(*log_zoom_range)) # for a zoom factor this sampling approach makes more sense.
-        # the range should be multiplicatively symmetric, so [1/1.1, 1.1] instead of [0.9, 1.1] makes more sense.
+        return {'zoom':np.array([zoom_x, zoom_y]), 'rotation':rotation, 'shear':shear, 'translation':np.array([translation_x, translation_y])}
     
-    
-        return {'zoom':zoom, 'rotation':rotation, 'shear':shear, 'translation':translation}
     def __str__(self):
         ss = str(self.transform_param) + ' ' + str(self.color_adjustment_param)
         return ss
@@ -155,7 +145,7 @@ class Transformer:
         img *= mult_rgb
         np.clip(img, 0.0, 1.0, img)
         blur_mask = None
-        if mask != None:
+        if mask is not None:
             blur_mask = random.choice([mask,1-mask,np.ones_like(mask)])
         if blur_radius > 0:
             selem = disk(blur_radius)
@@ -220,11 +210,12 @@ class Transformer:
     
     
     
-    def build_augmentation_transform(self, image_height, image_width, zoom=1.0, rotation=0, shear=0, translation=(0, 0)):
+    def build_augmentation_transform(self, image_height, image_width, zoom=(1.0, 1.0), rotation=0, shear=0, translation=(0, 0)):
+	zoom = np.array(zoom)
         center_shift = np.array((image_height, image_height)) / 2. - 0.5
         tform_center = skimage.transform.SimilarityTransform(translation=-center_shift)
         tform_uncenter = skimage.transform.SimilarityTransform(translation=center_shift)
     
-        tform_augment = skimage.transform.AffineTransform(scale=(1/zoom, 1/zoom), rotation=np.deg2rad(rotation), shear=np.deg2rad(shear), translation=translation)
+        tform_augment = skimage.transform.AffineTransform(scale=1.0/zoom, rotation=np.deg2rad(rotation), shear=np.deg2rad(shear), translation=translation)
         tform = tform_center + tform_augment + tform_uncenter # shift to center, augment, shift back (for the rotation/shearing)
         return tform
