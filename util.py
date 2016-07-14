@@ -37,7 +37,7 @@ def read_flo_file(file_path):
     with open(file_path, 'rb') as f:
         magic = np.fromfile(f, np.float32, count=1)
         if 202021.25 != magic:
-            cprint('Magic number incorrect. Invalid .flo file: %s' %s file_path, bcolors.FAIL)
+            cprint('Magic number incorrect. Invalid .flo file: %s' % file_path, bcolors.FAIL)
             raise  Exception('Magic incorrect: %s !' % file_path)
         else:
             w = np.fromfile(f, np.int32, count=1)
