@@ -5,11 +5,11 @@ import numpy as np
 import cPickle as pickle
 import random
 import skimage.io as io
-from transformer import Transformer_dist
+from transformer import Transformer_dist, Transformer
 from skimage.transform import resize
 from multiprocessing import Process, Queue
 from util import  check_params, load_netflow_db, read_netflow_instance
-
+import scipy as sp
 
 class LoaderProcess(Process):
     def __init__(self, name=None, args=(),
@@ -30,12 +30,12 @@ class NetflowTransformedDataLayerPrefetch(caffe.Layer):
         check_params(params, 
                 batch_size=1, 
                 split=None, 
-                im_shape=None,
                 shuffle=True, 
                 num_threads = 1, 
                 max_queue_size = 1,
-                annotation_file = '/mnt/sdc/FlyingChairs_release/FlyingChairs_train_val.txt', 
-                mean=None)
+                annotation_file = '/mnt/sdc/FlyingChairs_release/FlyingChairs_train_val.txt',
+                im_shape = None,
+                mean=np.array([0.410602, 0.431021, 0.448553]))
         self.batch_size = params['batch_size']
         self.num_threads = params['num_threads']
         self.max_queue_size = params['max_queue_size']
@@ -78,7 +78,7 @@ class BatchLoader(object):
     def __init__(self, params, netflow_db):
         self.batch_size = params['batch_size']
 	self.netflow_db = netflow_db
-        self.resizeShape = params['im_shape']
+        self.im_shape = params['im_shape']
         
         self.video_transformer = Transformer_dist({'transx_param':(0.0,0.0), 'transy_param':(0.0,0.0), 'rot_param':(0.0, 0.0), 
 						   'zoomx_param':(1.0, 0.0), 'zoomy_param':(1.0, 0.0), 'shear_param':(0.0, 2)}, {'sigma_range':(.0, .01), 'gamma_range':(.95, 1.05),
@@ -104,17 +104,53 @@ class BatchLoader(object):
 	
         img1, img2, flow = read_netflow_instance(self.netflow_db,
                 self.indexes[self.cur])
+
+        flow = flow.transpose((2,0,1))
+        if img2.shape[:2] != self.im_shape:
+            raise Exception
+        
         frame1_tran = self.video_transformer.sample()
-        frame2_tran = frame1_tran + self.frame_transformer.sample() #TODO: x_scale?, y_scale?
-        image1 = frame1_tran.transform_img(img1.copy(), img1.shape[:2]) #TODO: need mask?
-        image2 = frame2_tran.transform_img(img2.copy(), img2.shape[:2]) #TODO: need mask?
+        
+        frame2_tran = self.frame_transformer.sample()
+        image1 = frame1_tran.transform_img(img1.copy(), img1.shape[:2]) 
+        image2 = frame2_tran.transform_img(img2.copy(), img2.shape[:2])
+        image1 -= self.mean
+        image2 -= self.mean
         #TODO: transform flow and indices
+        # final_flow[T1(i,j)] = T2( (i,j) + f1(i,j) ) - T1(i,j)
+        # final_flow[ m, n ] = flow_trans(i,j)  i,j \in Z
+        # T1(i,j) = (m,n)
+        # final_flow[m,n] = flow_trans(T1^-1(m,n))
+
+
+        # 1) I[i,j], T
+        # 2) IT[k,l] = I[T^-1(k,l)]
+        # 1 and 2 ==> flow_trans(T1^-1(m,n)) = flow_trans_T[m,n]
+
+
+        #If we apply T1 on flow_trans we will get final_flow
+        newx = np.arange(img1.shape[1])
+        newy = np.arange(img1.shape[0])
+        mesh_grid = np.meshgrid(newx, newy)
+        locs1 = mesh_grid
+        locs2 = locs1 + flow
+        x,y = frame1_tran.transform_points(locs1[0].ravel(), locs1[1].ravel(), locs1[0].shape)
+        locs1 = np.concatenate((x,y)).reshape(flow.shape)
+        x,y = frame2_tran.transform_points(locs2[0].ravel(), locs2[1].ravel(), locs2[0].shape)
+        locs2 = np.concatenate((x,y)).reshape(flow.shape)
+        flow_trans = locs2 - locs1
+        
+        final_flow = np.zeros(flow.shape)
+        frame1_tran.color_adjustment_param = None
+        final_flow[0] = frame1_tran.transform_img(flow_trans[0], flow_trans[0].shape)
+        final_flow[1] = frame1_tran.transform_img(flow_trans[1], flow_trans[1].shape)
         
         # Cropping and resizing
-                
         self.cur += 1
-        item = {'img1':cimg.transpose((2,0,1)), #TODO: correct this
-                'img2' :cimg_masked.transpose((2,0,1)),
-                'flow'   :nimg.transpose((2,0,1))
+        item = {'img1':image1.transpose((2,0,1)),
+                'img2' :image2.transpose((2,0,1)),
+                'flow'   : final_flow[:, :, ::-1]
                 }
+
+
         return item
