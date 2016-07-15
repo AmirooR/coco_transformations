@@ -126,8 +126,8 @@ def read_netflow_instance(netflow_db, instance_id):
     data_dir = netflow_db['data_dir']
     instance_id = netflow_db['frame_indices'][instance_id]
     instance_id = instance_id + 1
-    img1 = io.imread( osp.join(data_dir, '%05d_img1.ppm' % instance_id))
-    img2 = io.imread( osp.join(data_dir, '%05d_img2.ppm' % instance_id))
+    img1 = io.imread( osp.join(data_dir, '%05d_img1.ppm' % instance_id)).astype(np.float32) / 255.0
+    img2 = io.imread( osp.join(data_dir, '%05d_img2.ppm' % instance_id)).astype(np.float32) / 255.0
     flow = read_flo_file( osp.join(data_dir, '%05d_flow.flo' % instance_id))
     return img1, img2, flow
 

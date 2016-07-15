@@ -113,6 +113,26 @@ class Transformer:
         img = skimage.transform.resize(img, final_size, order=1, mode='constant', cval=0)
         return img
     
+    def transform_points(self, xs, ys, img_size):
+        if self.transform_param == None:
+            trans_perturbation = skimage.transform.AffineTransform()
+        else:
+            trans_perturbation = self.build_augmentation_transform(image_height=img_size[0], image_width=img_size[1], **self.transform_param)
+
+        points = np.stack((xs, ys), axis=1)
+        tpoints = trans_perturbation.inverse(points)
+        return (tpoints[:, 0], tpoints[:, 1])
+        
+    def itransform_points(self, xs, ys, img_size):
+        if self.transform_param == None:
+            trans_perturbation = skimage.transform.AffineTransform()
+        else:
+            trans_perturbation = self.build_augmentation_transform(image_height=img_size[0], image_width=img_size[1], **self.transform_param)
+        points = np.stack((xs, ys), axis=1)
+        tpoints = trans_perturbation(points)
+        return (tpoints[:, 0], tpoints[:, 1])
+       
+
     def transform_mask(self, orig_mask, final_size):
         if self.transform_param == None:
             trans_perturbation = skimage.transform.AffineTransform()
@@ -124,7 +144,8 @@ class Transformer:
         scale = final_size[0]/float(mask.shape[0])
         mask = np.array(skimage.transform.resize(mask, final_size, order=0, mode='constant', cval=-1), dtype='int')
         
-        
+        #TODO: Correct this part according to rotate function line 260:
+        # https://github.com/scikit-image/scikit-image/blob/master/skimage/transform/_warps.py#L260
         #compute scale and occlusion variables:
         points = np.array([[0,0],[mask.shape[1], 0],[0, orig_mask.shape[0]],[orig_mask.shape[1], orig_mask.shape[0]]], dtype=np.int)
         tpoints = trans_perturbation.inverse(points)
@@ -212,7 +233,7 @@ class Transformer:
     
     def build_augmentation_transform(self, image_height, image_width, zoom=(1.0, 1.0), rotation=0, shear=0, translation=(0, 0)):
 	zoom = np.array(zoom)
-        center_shift = np.array((image_height, image_height)) / 2. - 0.5
+        center_shift = np.array((image_width, image_height)) / 2. - 0.5
         tform_center = skimage.transform.SimilarityTransform(translation=-center_shift)
         tform_uncenter = skimage.transform.SimilarityTransform(translation=center_shift)
     
