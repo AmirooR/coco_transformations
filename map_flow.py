@@ -26,14 +26,7 @@ def reflow( img1, img2, flow):
     mymap = np.indices(flow.shape[:2])
     map_t = mymap.transpose(1,2,0)
     new_map = flow + map_t[:,:,::-1]
-    newFrame = cv2.remap(img1, new_map[:,:,0].astype('float32'), new_map[:,:,1].astype('float32'), cv2.INTER_LINEAR)
-    return newFrame, new_map
-
-def reflow2( img1, img2, flow):
-    mymap = np.indices(flow.shape[:2])
-    map_t = mymap.transpose(1,2,0)
-    new_map = map_t[:,:,::-1] - flow
-    newFrame = cv2.remap(img1, new_map[:,:,0].astype('float32'), new_map[:,:,1].astype('float32'), cv2.INTER_LINEAR)
+    newFrame = cv2.remap(img2, new_map[:,:,0].astype('float32'), new_map[:,:,1].astype('float32'), cv2.INTER_LINEAR)
     return newFrame, new_map
 
 if __name__ == '__main__':
@@ -47,8 +40,7 @@ if __name__ == '__main__':
     flow = read_flo_file(sys.argv[3])
     
     newFrame, newmap = reflow(img1, img2, flow)
-    newFrame2, newmap2 = reflow2(img1, img2, flow)
-    print 'img2 sum: ', np.abs(img2 - newFrame).sum()
-    print 'img1 sum: ', np.abs(img1 - newFrame).sum()
-    print '2:: img2 sum: ', np.abs(img2 - newFrame2).sum()
-    print '2:: img1 sum: ', np.abs(img1 - newFrame2).sum()
+    io.imsave('newFrame.png', newFrame)
+    io.imsave('newFrame-img1.png', np.abs(newFrame - img1) )
+    print 'img1 sum: ', np.abs(newFrame - img1)
+    
