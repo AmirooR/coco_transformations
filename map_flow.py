@@ -22,10 +22,11 @@ def read_flo_file(file_path):
             data2D = np.reshape(data, (h, w, 2), order='C')
             return data2D
 
+# img1(x, y) = img2( x + flow_x(x,y), y + flow_y(x,y) )
 def reflow( img1, img2, flow):
     mymap = np.indices(flow.shape[:2])
     map_t = mymap.transpose(1,2,0)
-    new_map = flow + map_t[:,:,::-1]
+    new_map = flow + map_t[:,:,::-1] # (x,y) + flow(x,y)
     newFrame = cv2.remap(img2, new_map[:,:,0].astype('float32'), new_map[:,:,1].astype('float32'), cv2.INTER_LINEAR)
     return newFrame, new_map
 
