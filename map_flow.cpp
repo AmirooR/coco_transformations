@@ -2,6 +2,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
+#include <cmath>
 
 using namespace std;
 using namespace cv;
@@ -59,7 +60,7 @@ Mat fill_naive_img2(Mat img1, Mat flow)
             f.y = f.y+r;
             if( f.x >=0 && f.y >=0 && f.x < img1.cols && f.y < img1.rows)
             {
-                img2_n.at<Vec3b>( (int)f.y, (int)f.x) = img1.at<Vec3b>(r,c);
+                img2_n.at<Vec3b>( (int)floor( f.y + 0.5) , (int)floor(f.x + 0.5)) = img1.at<Vec3b>(r,c);
             }
             
         }
