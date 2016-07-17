@@ -51,6 +51,23 @@ def read_flo_file(file_path):
             data2D = np.reshape(data, (h, w, 2), order='C')
             return data2D
 
+
+def write_flo_file(file_path, data2D):
+    """
+    reads a flo file, it is for little endian architectures,
+    first slice, i.e. data2D[:,:,0], is horizontal displacements
+    second slice, i.e. data2D[:,:,1], is vertical displacements
+
+    """
+    with open(file_path, 'wb') as f:
+        magic = np.array(202021.25, dtype='float32')
+        magic.tofile(f)
+        h = np.array(data2D.shape[0], dtype='int32')
+        w = np.array(data2D.shape[1], dtype='int32')
+        w.tofile(f)
+        h.tofile(f)
+        data2D.astype('float32').tofile(f);
+	
 def add_noise_to_mask(cmask, r_param = (20, 20), mult_param = (20, 5), threshold = .2):
     radius = max(np.random.normal(*r_param), 1)
     mult = max(np.random.normal(*mult_param), 2)

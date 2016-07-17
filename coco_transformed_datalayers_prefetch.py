@@ -29,12 +29,21 @@ class CocoTransformedDataLayerPrefetch(caffe.Layer):
     def setup(self, bottom, top):
         self.top_names = ['current_image', 'masked_image','next_image','label']
         params = eval(self.param_str)
-        check_params(params, batch_size=1, split=None, im_shape=None, shuffle=True, num_threads = 1, max_queue_size = 1, data_dir = '/home/amir/coco',
+        check_params(params, batch_size=1, split=None, im_shape=0, shuffle=True, num_threads = 1, max_queue_size = 1, data_dir = '/home/amir/coco',
 		     cats = ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 
 			     'bus', 'train', 'truck', 'boat', 'bird', 'cat', 'dog', 
 			     'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 
 			     'giraffe', 'kite'], 
-			     areaRng = [1500. , np.inf], iscrowd=False, mean=None, noisy_mask = False)
+			     areaRng = [1500. , np.inf], iscrowd=False, mean=None, noisy_mask = False, bgr=False, scale_256=False, cur_shape=0, next_shape=0)
+		     
+	 #For backward compatibility
+        if params['next_shape'] == 0 or params['cur_shape'] == 0:
+	    if params['im_shape'] == 0:
+		raise Exception('Either im_shape or (cur_shape, next_shape) parameters should be set')
+	    params['next_shape'] = params['im_shape']
+	    params['cur_shape'] = [params['im_shape'][0]/2, params['im_shape'][1]/2]
+	
+	
         self.batch_size = params['batch_size']
         self.num_threads = params['num_threads']
         self.max_queue_size = params['max_queue_size']
@@ -49,18 +58,10 @@ class CocoTransformedDataLayerPrefetch(caffe.Layer):
             self.processes[i].start()
         #self.batch_loader = BatchLoader(params, None)
 
-        top[0].reshape(
-                self.batch_size, 3, params['im_shape'][0]/2,
-                params['im_shape'][1]/2) #NOTE: current is devided by 2
-        top[1].reshape(
-                self.batch_size, 3, params['im_shape'][0]/2,
-                params['im_shape'][1]/2)
-        top[2].reshape(
-                self.batch_size, 3, params['im_shape'][0],
-                params['im_shape'][1])
-        top[3].reshape(
-                self.batch_size, 1, params['im_shape'][0],
-                params['im_shape'][1])
+	top[0].reshape(self.batch_size, 3, params['cur_shape'][0],params['cur_shape'][1])
+        top[1].reshape(self.batch_size, 3, params['cur_shape'][0], params['cur_shape'][1])
+        top[2].reshape(self.batch_size, 3, params['next_shape'][0], params['next_shape'][1])
+        top[3].reshape(self.batch_size, 1, params['next_shape'][0], params['next_shape'][1])
 
     def forward(self, bottom, top):
 	#print 'Doing forward. Queue size: ', self.queue.qsize()
@@ -84,8 +85,8 @@ class BatchLoader(object):
     def __init__(self, params, coco_db):
         self.batch_size = params['batch_size']
 	self.coco_db = coco_db
-        self.resizeShape1 = (params['im_shape'][0]/2, params['im_shape'][1]/2)
-        self.resizeShape2 = params['im_shape']
+        self.resizeShape1 = params['cur_shape']
+        self.resizeShape2 = params['next_shape']
         
         self.video_transformer = Transformer_dist({'transx_param':(0.0,0.0), 'transy_param':(0.0,0.0), 'rot_param':(0.0, 0.0), 
 						   'zoomx_param':(1.0, 0.0), 'zoomy_param':(1.0, 0.0), 'shear_param':(0.0, 2)}, {'sigma_range':(.0, .01), 'gamma_range':(.95, 1.05),
@@ -102,9 +103,16 @@ class BatchLoader(object):
 	self.cur = coco_db['length']
 	self.shuffle = params['shuffle']
 	self.noisy_mask = params['noisy_mask']
+	self.bgr = params['bgr']
 	self.mean = np.array(params['mean']).reshape(1,1,3)
-	self.img1_bb_enlargement = 1.1
-	self.img2_bb_enlargement = 2.2
+	
+	#Always store mean in RGB format
+	self.mean = self.mean[:,:, ::-1]
+	
+	self.img1_bb_enlargement = params['bb1_enlargment']
+	self.img2_bb_enlargement = params['bb2_enlargment']
+	self.scale_256 = params['scale_256']
+	
 	
     def load_next_image(self):
         if self.cur == self.coco_db['length']:
@@ -139,8 +147,20 @@ class BatchLoader(object):
         label = crop(mask2.astype('float32'), mask1_bbox, bbox_enargement_factor = self.img2_bb_enlargement, output_shape = self.resizeShape2, resize_order = 0)
         
         self.cur += 1
+        
+        if self.bgr:
+	    cimg = cimg[:,:, ::-1]
+	    cimg_masked = cimg_masked[:, :, ::-1]
+	    nimg = nimg[:, :, ::-1]
+	    
+	if self.scale_256:
+	    cimg *= 255
+	    cimg_masked *= 255
+	    nimg *= 255
+	    
         item = {'current_image':cimg.transpose((2,0,1)),
                 'current_mask' :cimg_masked.transpose((2,0,1)),
                 'next_image'   :nimg.transpose((2,0,1)),
                 'label'        :label[np.newaxis, :, :]}
+	
         return item

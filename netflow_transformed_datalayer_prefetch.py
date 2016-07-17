@@ -86,7 +86,7 @@ class BatchLoader(object):
 						   'blur_param':[(.92, 0), (.04, 2), (.03, 3), (.01, 5)]})
 
 	sqrt2 = np.sqrt(2)
-        self.frame_transformer = Transformer_dist({'transx_param':(0.0,0.27035499630719317/sqrt2), 'transy_param':(0.0,0.03967734490564475/sqrt2), 'rot_param':(0.0, 5), 
+        self.frame_transformer = Transformer_dist(({'transx_param':(0.0,0.27035499630719317/sqrt2), 'transy_param':(0.0,0.03967734490564475/sqrt2), 'rot_param':(0.0, 5), 
 						   'zoomy_param':(1.0, 0.1625625379509229/sqrt2), 'zoomx_param':(1.0, 0.11389299050167503/sqrt2), 'shear_param':(0.0, 1)}, {'sigma_range':(.0, .01), 'gamma_range':(.99, 1.02),
 						   'contrast_range':(.98, 1.02), 'brightness_sigma':.01, 'mult_rgb_range':(0.99, 1.01),
 						   'blur_param':[(.92, 0), (.04, 2), (.03, 3), (.01, 5)]})
@@ -149,7 +149,7 @@ class BatchLoader(object):
         self.cur += 1
         item = {'img1':image1.transpose((2,0,1)),
                 'img2' :image2.transpose((2,0,1)),
-                'flow'   : final_flow[:, :, ::-1]
+                'flow'   : final_flow[::-1, :, :]
                 }
 
 

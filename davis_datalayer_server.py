@@ -93,7 +93,17 @@ class DavisDataLayerServer(caffe.Layer):
     def setup(self, bottom, top):
         self.top_names = ['current_image', 'masked_image','next_image','label']
         params = eval(self.param_str)
-        check_params(params, batch_size=1, split=None, port=None, im_shape=None, shuffle=False, max_len = 0)
+        check_params(params, batch_size=1, split=None, port=None, im_shape=0, shuffle=False, max_len=0, bgr=False, scale_256=False, bb1_enlargment=1.1, bb2_enlargment=2.2, cur_shape = 0, next_shape = 0)
+        
+        #For backward compatibility
+        if params['next_shape'] == 0 or params['cur_shape'] == 0:
+	    if params['im_shape'] == 0:
+		raise Exception
+	    params['next_shape'] = params['im_shape']
+	    params['cur_shape'] = [params['im_shape'][0]/2, params['im_shape'][1]/2]
+	    
+	    
+	    
         self.batch_size = params['batch_size']
         self.port = params['port']
         self.queue = Queue(self.batch_size)
@@ -103,18 +113,10 @@ class DavisDataLayerServer(caffe.Layer):
         self.process.daemon = True
         self.process.start()
 
-        top[0].reshape(
-                self.batch_size, 3, params['im_shape'][0]/2,
-                params['im_shape'][1]/2)
-        top[1].reshape(
-                self.batch_size, 3, params['im_shape'][0]/2,
-                params['im_shape'][1]/2)
-        top[2].reshape(
-                self.batch_size, 3, params['im_shape'][0],
-                params['im_shape'][1])
-        top[3].reshape(
-                self.batch_size, 1, params['im_shape'][0],
-                params['im_shape'][1])
+        top[0].reshape(self.batch_size, 3, params['cur_shape'][0],params['cur_shape'][1])
+        top[1].reshape(self.batch_size, 3, params['cur_shape'][0], params['cur_shape'][1])
+        top[2].reshape(self.batch_size, 3, params['next_shape'][0], params['next_shape'][1])
+        top[3].reshape(self.batch_size, 1, params['next_shape'][0], params['next_shape'][1])
 
     def forward(self, bottom, top):
         for itt in range(self.batch_size):
@@ -136,11 +138,16 @@ class DavisDataLayerServer(caffe.Layer):
 class BatchLoader(object):
     def __init__(self, sequences, params):
         self.batch_size = params['batch_size']
-        self.resizeShape1 = (params['im_shape'][0]/2, params['im_shape'][1]/2)
-        self.resizeShape2 = params['im_shape']
+        self.resizeShape1 = params['cur_shape']
+        self.resizeShape2 = params['next_shape']
+        self.bgr = params['bgr']
+        self.scale_256 = params['scale_256']
+        self.bb1_enlargment = params['bb1_enlargment']
+        self.bb2_enlargment = params['bb2_enlargment']
         self.sequences = sequences
     
-    def load_frame(self, seq, frame, mask1_cropped, mask1_crop_param, img1_bb_enlargement = 1.1, img2_bb_enlargement = 2.2):
+    def load_frame(self, seq, frame, mask1_cropped, mask1_crop_param):
+	
         cprint('FRAME = ' + str(frame), bcolors.WARNING)
         
         #reading first frame
@@ -157,13 +164,23 @@ class BatchLoader(object):
         
         # Cropping and resizing
         mask1_bbox = bbox(mask1)
-        cimg = crop(image1, mask1_bbox, bbox_enargement_factor = img1_bb_enlargement, output_shape = self.resizeShape1, resize_order = 3)
-        cmask = crop(mask1.astype('float32'), mask1_bbox, bbox_enargement_factor = img1_bb_enlargement, output_shape = self.resizeShape1)
+        cimg = crop(image1, mask1_bbox, bbox_enargement_factor = self.bb1_enlargment, output_shape = self.resizeShape1, resize_order = 3)
+        cmask = crop(mask1.astype('float32'), mask1_bbox, bbox_enargement_factor = self.bb1_enlargment, output_shape = self.resizeShape1)
         cimg_masked = cimg * cmask[:,:,np.newaxis]
-        nimg = crop(image2, mask1_bbox, bbox_enargement_factor = img2_bb_enlargement, output_shape = self.resizeShape2, resize_order = 3)
-        label = crop(mask2.astype('float32'), mask1_bbox, bbox_enargement_factor = img2_bb_enlargement, output_shape = self.resizeShape2, resize_order = 0)
-        label_crop_param = dict(bbox=mask1_bbox, bbox_enargement_factor=img2_bb_enlargement, output_shape=image1.shape[0:2])
+        nimg = crop(image2, mask1_bbox, bbox_enargement_factor = self.bb2_enlargment, output_shape = self.resizeShape2, resize_order = 3)
+        label = crop(mask2.astype('float32'), mask1_bbox, bbox_enargement_factor = self.bb2_enlargment, output_shape = self.resizeShape2, resize_order = 0)
+        label_crop_param = dict(bbox=mask1_bbox, bbox_enargement_factor=self.bb2_enlargment, output_shape=image1.shape[0:2])
 	
+	if self.bgr:
+	    cimg = cimg[:,:, ::-1]
+	    cimg_masked = cimg_masked[:, :, ::-1]
+	    nimg = nimg[:, :, ::-1]
+	    
+	if self.scale_256:
+	    cimg *= 255
+	    cimg_masked *= 255
+	    nimg *= 255
+	    
         item = {'current_image': cimg.transpose((2,0,1)),
                 'current_masked' : cimg_masked.transpose((2,0,1)),
                 'current_mask' : cmask,
