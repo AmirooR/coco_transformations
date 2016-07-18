@@ -35,7 +35,8 @@ class NetflowTransformedDataLayerPrefetch(caffe.Layer):
                 max_queue_size = 1,
                 annotation_file = '/mnt/sdc/FlyingChairs_release/FlyingChairs_train_val.txt',
                 im_shape = None,
-                mean=np.array([0.410602, 0.431021, 0.448553]))
+                mean1=np.array([0.411451, 0.432060, 0.450141]),
+                mean2=np.array([0.431021, 0.410602, 0.448553]) )
         self.batch_size = params['batch_size']
         self.num_threads = params['num_threads']
         self.max_queue_size = params['max_queue_size']
@@ -86,7 +87,7 @@ class BatchLoader(object):
 						   'blur_param':[(.92, 0), (.04, 2), (.03, 3), (.01, 5)]})
 
 	sqrt2 = np.sqrt(2)
-        self.frame_transformer = Transformer_dist(({'transx_param':(0.0,0.27035499630719317/sqrt2), 'transy_param':(0.0,0.03967734490564475/sqrt2), 'rot_param':(0.0, 5), 
+        self.frame_transformer = Transformer_dist({'transx_param':(0.0,0.27035499630719317/sqrt2), 'transy_param':(0.0,0.03967734490564475/sqrt2), 'rot_param':(0.0, 5), 
 						   'zoomy_param':(1.0, 0.1625625379509229/sqrt2), 'zoomx_param':(1.0, 0.11389299050167503/sqrt2), 'shear_param':(0.0, 1)}, {'sigma_range':(.0, .01), 'gamma_range':(.99, 1.02),
 						   'contrast_range':(.98, 1.02), 'brightness_sigma':.01, 'mult_rgb_range':(0.99, 1.01),
 						   'blur_param':[(.92, 0), (.04, 2), (.03, 3), (.01, 5)]})
@@ -94,7 +95,9 @@ class BatchLoader(object):
         self.indexes = np.arange(netflow_db['length'])
 	self.cur = netflow_db['length']
 	self.shuffle = params['shuffle']
-	self.mean = np.array(params['mean']).reshape(1,1,3)
+	self.mean1 = np.array(params['mean1']).reshape(1,1,3)
+        self.mean2 = np.array(params['mean2']).reshape(1,1,3)
+
 	
     def load_next_image(self):
         if self.cur == self.netflow_db['length']:
@@ -114,8 +117,8 @@ class BatchLoader(object):
         frame2_tran = self.frame_transformer.sample()
         image1 = frame1_tran.transform_img(img1.copy(), img1.shape[:2]) 
         image2 = frame2_tran.transform_img(img2.copy(), img2.shape[:2])
-        image1 -= self.mean
-        image2 -= self.mean
+        image1 -= self.mean1
+        image2 -= self.mean2
         #TODO: transform flow and indices
         # final_flow[T1(i,j)] = T2( (i,j) + f1(i,j) ) - T1(i,j)
         # final_flow[ m, n ] = flow_trans(i,j)  i,j \in Z
