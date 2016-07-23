@@ -3,6 +3,7 @@ import scipy.io as spio
 import os
 import abc
 import skimage.io as skio
+import util
 
 class ToDavisConverter(object):
     __metaclass__ = abc.ABCMeta
@@ -227,6 +228,11 @@ def convert_image_to_davis(self, wrt_images_dir, wrt_annotations_dir,
         wrt_annotation_path = os.path.join( annotations_dir_path,
                 wrt_annotation_name)
         skio.imsave( wrt_annotation_path, mask)
+        wrt_flo_name = '%05d.flo' % 0
+        wrt_flo_path = os.path.join( annotations_dir_path,
+                wrt_flo_name)
+        util.write_flo_file( wrt_flo_path, flow)
+
         # next frame 
         mask = next_mask # should be read by io.imread beforehand
         image = next_img #skio.imread(image_file)
