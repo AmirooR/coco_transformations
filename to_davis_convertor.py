@@ -202,3 +202,39 @@ class SegTrackToDavisConverter(ToDavisConverter):
                         wrt_annotation_name)
                 skio.imsave( wrt_annotation_path, mask)
 
+def convert_image_to_davis(self, wrt_images_dir, wrt_annotations_dir,
+        seq_name, wrt_dir_prefix, set_name, yml_file,
+        cur_img, next_img, cur_mask, next_mask, flow): 
+        #NOTE: seq_name should consider the object_index too
+        
+        dir_name = wrt_dir_prefix + '-' + seq_name #TODO negotiate for this
+        images_dir_path = os.path.join(wrt_images_dir, dir_name)
+        annotations_dir_path = os.path.join(wrt_annotations_dir, dir_name)
+        if not os.path.exists(images_dir_path):
+            os.makedirs(images_dir_path)
+        if not os.path.exists(annotations_dir_path):
+            os.makedirs(annotations_dir_path)
+        yml_file.write('- attributes: []\n')
+        yml_file.write('  name: %s\n' % dir_name)
+        yml_file.write('  num_frames: %d\n' % 2 ) # only two frames for single images
+        yml_file.write('  set: %s\n' % set_name)
+        mask = cur_mask # should be read by io.imread beforehand
+        image = cur_img #skio.imread(image_file)
+        wrt_image_name = '%05d.jpg' % 0
+        wrt_image_path = os.path.join( images_dir_path, wrt_image_name)
+        skio.imsave( wrt_image_path, image)
+        wrt_annotation_name = '%05d.png' % 0
+        wrt_annotation_path = os.path.join( annotations_dir_path,
+                wrt_annotation_name)
+        skio.imsave( wrt_annotation_path, mask)
+        # next frame 
+        mask = next_mask # should be read by io.imread beforehand
+        image = next_img #skio.imread(image_file)
+        wrt_image_name = '%05d.jpg' % 1
+        wrt_image_path = os.path.join( images_dir_path, wrt_image_name)
+        skio.imsave( wrt_image_path, image)
+        wrt_annotation_name = '%05d.png' % 1
+        wrt_annotation_path = os.path.join( annotations_dir_path,
+                wrt_annotation_name)
+        skio.imsave( wrt_annotation_path, mask)
+
