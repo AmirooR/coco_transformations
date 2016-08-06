@@ -54,7 +54,7 @@ def read_flo_file(file_path):
 
 def write_flo_file(file_path, data2D):
     """
-    reads a flo file, it is for little endian architectures,
+    writes a flo file, it is for little endian architectures,
     first slice, i.e. data2D[:,:,0], is horizontal displacements
     second slice, i.e. data2D[:,:,1], is vertical displacements
 
@@ -92,13 +92,13 @@ def bbox(img):
     cmin, cmax = np.where(cols)[0][[0, -1]]
     return rmin, rmax, cmin, cmax
 
-def crop(img, bbox, bbox_enargement_factor = 1, constant_pad = 0, output_shape = None, resize_order = 1):
+def crop(img, bbox, bbox_enargement_factor = 1, constant_pad = 0, output_shape = None, resize_order = 1, clip = True):
     pad_size = ((bbox_enargement_factor - 1) * np.array([bbox[1]+1 - bbox[0], bbox[3]+1 - bbox[2]], 'float32')/2.0 + constant_pad).astype('int')
     pad_param = tuple(zip(pad_size, pad_size)) + (len(img.shape) - 2) * ((0,0),)
     img_padded = np.pad(img, pad_param, mode='constant')
     output = img_padded[bbox[0]:(bbox[1] + 2 * pad_size[0] + 1), bbox[2]:(bbox[3] + 2 * pad_size[1] + 1)]
     if output_shape is not None:
-	return resize( output, output_shape, order = resize_order, mode = 'nearest')
+	return resize( output, output_shape, order = resize_order, mode = 'nearest', clip = clip)
     else:
 	return output
 
@@ -191,46 +191,44 @@ def load_coco_db(dataDir, dataType, cats=[], areaRng=[], iscrowd=False, shuffle 
     
     
    
-#def read_pascal_instance(pascal_db, instance_id, load_mask = True):
-    #ann = pascal_db['anns'][instance_id]
-    #img_path = 
-    #uint_image = io.imread('%s/images/%s/%s' % (coco_db['dataDir'],
-                            #coco_db['dataType'],img_cur['file_name']))
-    #if len(uint_image.shape) == 2:
-    	#tmp_image = np.zeros(uint_image.shape + (3,), dtype=np.uint8)
-    	#tmp_image[:,:,0] = tmp_image[:,:,1] = tmp_image[:,:,2] = uint_image
-        #uint_image = tmp_image
-    #float_image = np.array(uint_image, dtype=np.float32)/255.0
+def read_pascal_instance(pascal_db, instance_id, load_mask = True):
+    ann = pascal_db['anns'][instance_id]
+    img_path = osp.join(pascal_db['dataDir'], 'JPEGImages', ann['image_name'] + '.jpg')
+    uint_image = io.imread(img_path)
+    if len(uint_image.shape) == 2:
+    	tmp_image = np.zeros(uint_image.shape + (3,), dtype=np.uint8)
+    	tmp_image[:,:,0] = tmp_image[:,:,1] = tmp_image[:,:,2] = uint_image
+        uint_image = tmp_image
+    float_image = np.array(uint_image, dtype=np.float32)/255.0
     
-    #if load_mask:
-	#mobj_path = osp.join(self.db_path, 'SegmentationObject', pascal_db[ + '.png')
-	#mobj_uint = misc.imread(mobj_path)
-	#m_uint = mask.decode(rle)
-	#m = np.array(m_uint[:, :, 0], dtype=np.float32)
-	#return (float_image, m)
-    #return float_image
+    if load_mask:
+	mobj_path = osp.join(pascal_db['dataDir'], 'SegmentationObject', ann['mask_name'] + '.png')
+	mobj_uint = misc.imread(mobj_path)
+	m = np.zeros(mobj_uint.shape, dtype=np.float32)
+	m[mobj_uint == ann['object_id']] = 1
+	return (float_image, m)
+    return float_image
     
-#def load_pascal_db(dataDir, dataType, cats=[], areaRng=[], shuffle = False, chunck_num = 0):
-    #if dataType == 'training':
-	#dataType = 'train'
-    #elif dataType == 'test':
-	#dataType = 'val'
-    #else:
-	#raise Exception('split \'' + dataType + '\' is not valid! Valid splits: training/test')
+def load_pascal_db(dataDir, dataType, cats=[], areaRng=[], shuffle = False, chunck_num = 0):
+    if dataType == 'training':
+	dataType = 'train'
+    elif dataType == 'test':
+	dataType = 'val'
+    else:
+	raise Exception('split \'' + dataType + '\' is not valid! Valid splits: training/test')
     
-    #pascal = PASCAL(dataDir, dataType)
-    #catIds = pascal.getCatIds(catNms=cats)
-    #anns = p.getAnns(catIds=catIds, areaRng=areaRng)
-    #getAnns(self, catIds=[], areaRng=[0, np.inf]):
-    #cprint(str(len(anns)) + ' annotations read from pascal', bcolors.OKGREEN)
-    #if shuffle:
-	#random.shuffle(anns)
-    #if chunck_num == 0:
-	#return dict(pascal=pascal, dataDir=dataDir, dataType=dataType, cats=cats, areaRng=areaRng, length=len(anns), anns=anns)
-    #else:
-	#ind = range(0, len(anns), int(len(anns) / chunck_num) + 1)
-	#ind.append(len(anns))
-	#return [dict(pascal=pascal, dataDir=dataDir, dataType=dataType, cats=cats, areaRng=areaRng, length=ind[i+1] - ind[i], anns=anns[ind[i]:ind[i+1]]) for i in xrange(len(ind) - 1)]
+    pascal = PASCAL(dataDir, dataType)
+    catIds = pascal.getCatIds(catNms=cats)
+    anns = pascal.getAnns(catIds=catIds, areaRng=areaRng)
+    cprint(str(len(anns)) + ' annotations read from pascal', bcolors.OKGREEN)
+    if shuffle:
+	random.shuffle(anns)
+    if chunck_num == 0:
+	return dict(pascal=pascal, dataDir=dataDir, dataType=dataType, cats=cats, areaRng=areaRng, length=len(anns), anns=anns)
+    else:
+	ind = range(0, len(anns), int(len(anns) / chunck_num) + 1)
+	ind.append(len(anns))
+	return [dict(pascal=pascal, dataDir=dataDir, dataType=dataType, cats=cats, areaRng=areaRng, length=ind[i+1] - ind[i], anns=anns[ind[i]:ind[i+1]]) for i in xrange(len(ind) - 1)]
 
 
 
@@ -285,8 +283,7 @@ def load_davis_sequences(split, max_seq_len = 0, shuffle = False):
 	    random.shuffle(full_sequences)
 	
     return full_sequences
-    
-    
+
 class PASCAL:
     def __init__(self, db_path, dataType):
 	self.db_path = db_path
@@ -324,7 +321,7 @@ class PASCAL:
 		class_id = int(np.median(mclass_uint[mobj_uint == obj_ids[obj_idx]]))
 		if class_id == 0 or class_id == 255 or obj_ids[obj_idx] == 0 or obj_ids[obj_idx] == 255:
 		    continue
-		anns.append(dict(image_name=item, mask_name=item, object_id=obj_idx+1, class_id=class_id, object_size = obj_sizes[obj_idx]))
+		anns.append(dict(image_name=item, mask_name=item, object_id=obj_ids[obj_idx], class_id=class_id, object_size = obj_sizes[obj_idx]))
 	
 	with open(self.get_annotation_path(), 'w') as f:
 	    pickle.dump(anns, f)
