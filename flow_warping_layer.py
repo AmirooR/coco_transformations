@@ -6,6 +6,7 @@ import random
 import skimage.io as io
 from skimage.transform import resize
 from scipy.sparse import csr_matrix
+from util import  check_params
 
 class FlowWarpingLayer(caffe.Layer):
     def create_A(self, disp):
@@ -69,23 +70,41 @@ class FlowWarpingLayer(caffe.Layer):
 
 
     def setup(self, bottom, top):
-        pass   
+	params = eval(self.param_str)
+	check_params(params, scale=1.0)
+	self.scale = params['scale']
       
     def reshape(self, bottom, top):
         top[0].reshape(*bottom[0].data.shape)
 
+    def single_forward(self, img, disp):
+	coefs, partials = self.create_A(disp * self.scale)
+        wimg = (img.reshape((-1, coefs.shape[0])) * coefs.T).reshape(img.shape)
+	return partials, coefs, wimg
+    
+    def single_backward(self, partials, coefs, img, wimg_diff):
+	n_pix = partials[0].shape[0]
+        img_diff = (wimg_diff.reshape((-1, n_pix)) * coefs).reshape(wimg_diff.shape)
+        
+        RoRd = img.reshape((-1, n_pix)) * partials[0].T
+        ddiff = (RoRd * wimg_diff.reshape((-1, n_pix))).sum(0)
+        
+        disp_diff = np.zeros((2,) + wimg_diff.shape[-2:])
+        disp_diff[0, ...] = ddiff.reshape(wimg_diff.shape[-2:])
+        disp_diff[1, ...] = ((img.reshape((-1, n_pix)) * partials[1].T) * wimg_diff.reshape((-1,n_pix))).sum(0).reshape(wimg_diff.shape[-2:])
+        disp_diff *= self.scale
+        return img_diff, disp_diff
+    
     def forward(self, bottom, top):
         n = bottom[0].data.shape[0]
         self.partials = [None] * n
         self.coefs = [None] * n
         for i in range(n):
-            coefs, partials = self.create_A(bottom[1].data[i])
+            coefs, partials = self.create_A(bottom[1].data[i] * self.scale)
             top[0].data[i, ...] = (bottom[0].data[i].reshape((-1,
-                coefs.shape[0])) * coefs.T).reshape(top[0].data[i].shape) 
+                coefs.shape[0])) * coefs.T).reshape(top[0].data[i].shape)
             self.partials[i] = partials
             self.coefs[i] = coefs
-            with open('coef%d.pkl'%i, 'wb') as f:
-                pickle.dump(coefs, f, -1)
     
     def backward(self, top, propagate_down, bottom):
         n = bottom[0].data.shape[0]
@@ -97,10 +116,9 @@ class FlowWarpingLayer(caffe.Layer):
             
             RoRd = bottom[0].data[i].reshape((-1, n_pix)) * self.partials[i][0].T
             ddiff = (RoRd * top_diff.reshape((-1, n_pix))).sum(0)
-            print ddiff.shape, top_diff.shape[-2:]
-            bottom[1].diff[i, 0, ...] = ddiff.reshape(top_diff.shape[-2:])
-            
-            bottom[1].diff[i, 1, ...] = ((bottom[0].data[i].reshape((-1, n_pix)) * self.partials[i][1].T) * top_diff.reshape((-1,n_pix))).sum(0).reshape(top_diff.shape[-2:])
+            #print ddiff.shape, top_diff.shape[-2:]
+            bottom[1].diff[i, 0, ...] = ddiff.reshape(top_diff.shape[-2:]) * self.scale
+            bottom[1].diff[i, 1, ...] = ((bottom[0].data[i].reshape((-1, n_pix)) * self.partials[i][1].T) * top_diff.reshape((-1,n_pix))).sum(0).reshape(top_diff.shape[-2:]) * self.scale
 
 
 

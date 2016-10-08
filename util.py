@@ -12,10 +12,11 @@ from pycocotools import mask
 from skimage.morphology import disk
 from skimage.filters import rank
 import pickle
+import copy
 
 debug_mode = False
 def cprint(string, style = None):
-    if not debug_mode:
+    if not debug_mode and style != bcolors.FAIL:
 	return
     if style is None:
 	print str(string)
@@ -41,14 +42,14 @@ def read_flo_file(file_path):
     """
     with open(file_path, 'rb') as f:
         magic = np.fromfile(f, np.float32, count=1)
-        if 202021.25 != magic:
+        if 202021.25 != magic[0]:
             cprint('Magic number incorrect. Invalid .flo file: %s' % file_path, bcolors.FAIL)
             raise  Exception('Magic incorrect: %s !' % file_path)
         else:
             w = np.fromfile(f, np.int32, count=1)
             h = np.fromfile(f, np.int32, count=1)
             data = np.fromfile(f, np.float32, count=2*w*h)
-            data2D = np.reshape(data, (h, w, 2), order='C')
+            data2D = np.reshape(data, (h[0], w[0], 2), order='C')
             return data2D
 
 
@@ -68,7 +69,7 @@ def write_flo_file(file_path, data2D):
         h.tofile(f)
         data2D.astype('float32').tofile(f);
 	
-def add_noise_to_mask(cmask, r_param = (20, 20), mult_param = (20, 5), threshold = .2):
+def add_noise_to_mask(cmask, r_param = (10, 10), mult_param = (20, 5), threshold = .2):
     radius = max(np.random.normal(*r_param), 1)
     mult = max(np.random.normal(*mult_param), 2)
     
@@ -111,7 +112,7 @@ def crop_undo(img, bbox, bbox_enargement_factor = 1, constant_pad = 0, output_sh
     if output_shape is not None:
 	output = np.zeros((output_shape[0] + 2 * pad_size[0], output_shape[1] + 2 * pad_size[1]))
 	output[bbox[0]:(bbox[1] + 2 * pad_size[0] + 1), bbox[2]:(bbox[3] + 2 * pad_size[1] + 1)] = img
-	return output[pad_size[0]:-(1+pad_size[0]), pad_size[1]:-(1+pad_size[1])]
+	return output[pad_size[0]:-pad_size[0], pad_size[1]:-pad_size[1]]
     else:
 	return img
     
@@ -206,6 +207,9 @@ def read_pascal_instance(pascal_db, instance_id, load_mask = True):
 	mobj_uint = misc.imread(mobj_path)
 	m = np.zeros(mobj_uint.shape, dtype=np.float32)
 	m[mobj_uint == ann['object_id']] = 1
+	#if m.sum() < 1000:
+	#    a,b = np.unique(mobj_uint, return_counts=True)
+	#    print '>>>>>>>>>>>>>>>>', a, b, ann['object_id'], ann['object_size'], mobj_path
 	return (float_image, m)
     return float_image
     
@@ -231,34 +235,72 @@ def load_pascal_db(dataDir, dataType, cats=[], areaRng=[], shuffle = False, chun
 	return [dict(pascal=pascal, dataDir=dataDir, dataType=dataType, cats=cats, areaRng=areaRng, length=ind[i+1] - ind[i], anns=anns[ind[i]:ind[i+1]]) for i in xrange(len(ind) - 1)]
 
 
-
-def read_davis_frame(sequences, seq_id, frame_id, load_mask = True):
+# read_flo can be None, 'None', 'LDOF', or 'EPIC'
+def read_davis_frame(sequences, seq_id, frame_id, read_flo = None):
     assert seq_id < len(sequences)
-    assert frame_id < sequences[seq_id]['num_frames']
+    num_frames = sequences[seq_id]['num_frames']
+    assert frame_id < num_frames
     orig_name = sequences[seq_id]['name']
     start_id = sequences[seq_id]['start_id']
-    file_name = osp.join(cfg.PATH.SEQUENCES_DIR, orig_name, '%05d.jpg' % (frame_id + start_id))
+    step = sequences[seq_id]['step']
+    if step == 1:
+        img_id = frame_id + start_id
+    elif step == -1:
+        img_id = -frame_id + start_id + num_frames - 1
+    else:
+        raise Exception
+    file_name = osp.join(cfg.PATH.SEQUENCES_DIR, orig_name, '%05d.jpg' % (img_id))
     uint_image = io.imread(file_name)
     if len(uint_image.shape) == 2:
 	tmp_image = np.zeros(uint_image.shape + (3,), dtype=np.uint8)
         tmp_image[:,:,0] = tmp_image[:,:,1] = tmp_image[:,:,2] = uint_image
         uint_image = tmp_image
     image = np.array(uint_image, dtype=np.float32)/255.0
-    if load_mask:
-	mask_name = osp.join(cfg.PATH.ANNOTATION_DIR, orig_name, '%05d.png' % (frame_id + start_id))
-	m_uint = io.imread(mask_name)
-	mask = np.array(m_uint, dtype=np.float32) / 255.0
-	return (image, mask)
-    return image
+	
+    #read mask
+    mask_name = osp.join(cfg.PATH.ANNOTATION_DIR, orig_name, '%05d.png' % (img_id))
+    m_uint = io.imread(mask_name)
+    fg = np.unique(m_uint)
+    if not (len(m_uint.shape) == 2 and ((len(fg) == 2 and fg[0] == 0 and fg[1] == 255) or (len(fg) == 1 and (fg[0] == 0 or fg[0] == 255)))):
+	print mask_name, fg, m_uint.shape
+	raise Exception
+    
+    mask = np.array(m_uint, dtype=np.float32) / 255.0
+    
+    output = dict(image=image, mask=mask)
+    #read inv flo file
+    if read_flo is not None and read_flo != 'None':
+	if read_flo == 'LDOF':
+	    if step == 1:
+		flow_name = osp.join(cfg.PATH.ANNOTATION_DIR, orig_name, '%05d_inv_LDOF.flo' % (img_id))
+	    elif step == -1:
+		flow_name = osp.join(cfg.PATH.ANNOTATION_DIR, orig_name, '%05d_LDOF.flo' % (img_id))
+	elif read_flo == 'EPIC':
+	    if step == 1:
+		flow_name = osp.join(cfg.PATH.ANNOTATION_DIR, orig_name, '%05d_inv.flo' % (img_id))
+	    elif step == -1:
+		flow_name = osp.join(cfg.PATH.ANNOTATION_DIR, orig_name, '%05d.flo' % (img_id))
+	else:
+	    raise Exception('unsupported flow algorithm')
+	try:
+	    flow = read_flo_file(flow_name)
+	    output['iflow'] = flow
+	except IOError as e:
+	    print "Unable to open file", str(e)#Does not exist OR no read permissions
+    return output
     
 # 1376 Test
 # 2079 Training
-def load_davis_sequences(split, max_seq_len = 0, shuffle = False):
-    assert split == 'training' or split == 'test', 'split could be in this format: (training|test)'
+def load_davis_sequences(sets, max_seq_len = 0, shuffle = False, reverse_seq = False):
+    if isinstance(sets, basestring):
+	sets = [sets]
     db_info = db_read_info()
-    full_sequences = [x for x in db_info.sequences if x['set'] == split]
+    full_sequences = [x for x in db_info.sequences if x['set'] in sets]
+    
+    assert len(full_sequences) > 0
     for sequence in full_sequences:
 	sequence['start_id'] = 0
+	sequence['step'] = 1
     
     
     if max_seq_len > 0:
@@ -273,15 +315,20 @@ def load_davis_sequences(split, max_seq_len = 0, shuffle = False):
 	    #cprint(frame_num, bcolors.WARNING)
 	    #cprint(str(frame_nums), bcolors.WARNING)
 	    #cprint(str(start_ids), bcolors.WARNING)
-	    splited_sequence = [sequence] * len(start_ids)
+	    splited_sequence = [sequence.copy() for i in range(len(start_ids))]
 	    map(dict.__setitem__, splited_sequence, ['start_id'] * len(start_ids), start_ids)
 	    map(dict.__setitem__, splited_sequence, ['num_frames'] * len(frame_nums), frame_nums)
 	    splited_sequences.extend(splited_sequence)
 	cprint(str(splited_sequences), bcolors.WARNING)
 	full_sequences = splited_sequences
-	if shuffle:
-	    random.shuffle(full_sequences)
-	
+    
+    if reverse_seq:
+        reverse_seqs = copy.deepcopy(full_sequences)
+        map(dict.__setitem__, reverse_seqs, ['step'] * len(reverse_seqs), [-1] * len(reverse_seqs))
+        full_sequences.extend(reverse_seqs)
+	    	    
+    if shuffle:
+	random.shuffle(full_sequences)
     return full_sequences
 
 class PASCAL:
@@ -333,7 +380,6 @@ class PASCAL:
 	#return (image_path, mask_path, object_id
     #Each annotion has image_name, mask_name, object_id, class_id, object_size keys
     def getAnns(self, catIds=[], areaRng=[]):
-	
 	if areaRng == []:
 	    areaRng = [0, np.inf]
 	anns = self.load_annotations()

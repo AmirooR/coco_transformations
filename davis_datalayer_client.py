@@ -31,11 +31,17 @@ class DavisDataLayerClient(caffe.Layer):
 	    top[0].reshape(1)
 
     def forward(self, bottom, top):
-	#mask is a Nx2xHxW dimensional matrix
-	exp = np.exp(bottom[0].data)
-	fg_mask = exp[:, 1,:,:] / exp.sum(1)
-	fg_mask = fg_mask > .5
-	#fg_mask = bottom[0].data[:,0,:,:]
+	if bottom[0].data.shape[1] == 1:
+	    #mask is a Nx1xHxW dimensional matrix
+	    fg_mask = bottom[0].data[:,0,:,:]
+	elif bottom[0].data.shape[1] == 2:
+	    #mask is a Nx2xHxW dimensional matrix
+	    max_val = np.max(bottom[0].data, axis=1).reshape((bottom[0].data.shape[0], 1)+bottom[0].data.shape[2:])
+	    nd = bottom[0].data - max_val
+	    exp = np.exp(nd)
+	    fg_mask = exp[:, 1,:,:] / exp.sum(1)
+	else:
+	    raise Exception
         cprint('client sends '+ str(fg_mask.shape), bcolors.WARNING)
 	self.sock.send_pyobj(fg_mask)
         cprint('client waiting for response', bcolors.WARNING)
